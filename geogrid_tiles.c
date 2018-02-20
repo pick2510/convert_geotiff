@@ -196,6 +196,9 @@ void write_index_file(
   if (idx.categorical) {
     fprintf(f,"category_min = %i\n",idx.cat_min);
     fprintf(f,"category_max = %i\n",idx.cat_max);
+    if (strlen(idx.mminlu > 0)){
+      fprintf(f,"mminlu = %s\n", idx.mminlu);
+    }
   }
   
   fprintf(f,"tile_bdr = %i\n",idx.tile_bdr);
@@ -242,7 +245,7 @@ void write_tile(
   else endian=0;
   
   /* call write_geogrid to write tile to file */
-  write_geogrid(arr,&nx,&itx,&ny,&ity,&nz,&idx.tile_bdr,&isgn,&endian,
+  write_geogrid(arr,&nx,&itx,&ny,&ity,&nz,&idx.index_digits,&idx.tile_bdr,&isgn,&endian,
                 &idx.scalefactor,&idx.wordsize);
 }
 

@@ -43,6 +43,7 @@ typedef struct {
   int ty;        /* tile size in latitude (y) */
   int tz_s;      /* tile starting index in z (unused for 2d images) */
   int tz_e;      /* tile ending index in z (unused for 2d images) */
+  int index_digits;
   bool isigned;  /* data is signed, true: yes, false: no */
   bool endian;   /* output endianness is, true: little, false: big */
   float scalefactor; /* amount to scale output before truncating to int */
@@ -51,6 +52,7 @@ typedef struct {
   bool categorical;  /* is the data categorical, true: yes, false: no */
   char units[STRING_LENGTH]; /* units of the data */
   char description[STRING_LENGTH]; /* description of the data */
+  char mminlu[STRING_LENGTH]; /*Landuse code in LANDUSE.TBL and VEGPARM.tbl */
   int cat_min;   /* minimum category (unused for continuous data) */
   int cat_max;   /* maximum category (unused for continuous data) */
   float missing; /* value to enter for missing data (zero for categorical) */

@@ -50,6 +50,7 @@ int write_geogrid(
                  const int * ny,                /* y-dimension of the array */
                  const int * iy,                /* starting y-index of the tile */
                  const int * nz,                /* z-dimension of the array */
+                 const int * index_digits,      /* 5 or 6 index digits */
                  const int * bdr,               /* tile border width */
                  const int * isigned,           /* 0=unsigned data, 1=signed data */
                  const int * endian,            /* 0=big endian, 1=little endian */
@@ -134,8 +135,12 @@ int write_geogrid(
       fprintf(stderr,"Unsupported wordsize=%i",*wordsize);
       exit(EXIT_FAILURE);
   }
-  
-  sprintf(fname,"%5.5i-%5.5i.%5.5i-%5.5i",ixs,ixe,iys,iye);
+  if (*index_digits == 5){ 
+    sprintf(fname,"%5.5i-%5.5i.%5.5i-%5.5i",ixs,ixe,iys,iye);
+  }
+  else if (*index_digits == 6){
+    sprintf(fname,"%6.6i-%6.6i.%6.6i-%6.6i",ixs,ixe,iys,iye);
+  }
   
   /* Write array to file */
   bfile = fopen(fname,"wb");

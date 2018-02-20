@@ -12,6 +12,7 @@ int write_geogrid(
                  const int * ny,                /* y-dimension of the array */
                  const int * iy,                /* starting y-index of the tile */
                  const int * nz,                /* z-dimension of the array */
+                 const int * index_digits,      /* 5 or 6 index digits */
                  const int * bdr,               /* tile border width */
                  const int * isigned,           /* 0=unsigned data, 1=signed data */
                  const int * endian,            /* 0=big endian, 1=little endian */

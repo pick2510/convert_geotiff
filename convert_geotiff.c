@@ -72,36 +72,40 @@ void print_usage(FILE* f,const char* name) {
   fprintf(f,"-b NUM     : Tile border width (default 3)\n");
   fprintf(f,"-w [1,2,4] : Word size in output in bytes (default 2)\n");
   fprintf(f,"-z         : Indicates unsigned data (default FALSE)\n");
-  fprintf(f,"-t NUM     : Output tile size (default 100)\n");
+  fprintf(f,"-t NUM     : Output tile siz (default 100)\n");
   fprintf(f,"-s SCALE   : Scale factor in output (default 1.)\n");
   fprintf(f,"-m MISSING : Missing value in output (default 0., ignored for categorical data)\n");
   fprintf(f,"-u UNITS   : Units of the data (default \"NO UNITS\")\n");
   fprintf(f,"-d DESC    : Description of data set (default \"NO DESCRIPTION\")\n");
+  fprintf(f,"-l DESC    : mminlu string for LANDUSE.tbl and VEGPARM.tbl, only for categorical data");
+  fprintf(f,"-i [5,6]   : Sets number of index digits in filename (default 5), 6 is useful for big datasets\n");
 }
 
 int main (int argc, char * argv[]) {
   
   int c,i,j;
-  int categorical_range,border_width,word_size,isigned,tile_size;
+  int categorical_range,border_width,word_size,isigned,tile_size,index_digits;
   float scale,missing;
   GeogridIndex idx;
-  char units[STRING_LENGTH],description[STRING_LENGTH],filename[STRING_LENGTH];
+  char units[STRING_LENGTH],description[STRING_LENGTH],filename[STRING_LENGTH], mminlu[STRING_LENGTH];
   TIFF *file;
   float *buffer,swp;
   
   /* set up defaults */
   border_width=3;
+  index_digits=5;
   word_size=2;
   isigned=1;
   scale=1.;
   strcpy(units,"\"NO UNITS\"");
+  strcpy(mminlu,"");
   strcpy(description,"\"NO DESCRIPTION\"");
   categorical_range=0;
   tile_size=100;
   missing=0;
   
   /* parse options */
-  while ( (c = getopt(argc, argv, "hzs:c:b:w:t:m:u:d:") ) != -1) {
+  while ( (c = getopt(argc, argv, "hzs:c:b:w:t:m:u:d:l:i:") ) != -1) {
     switch (c) {
       case 'c':
         if(sscanf(optarg,"%i",&categorical_range) != 1 ||
@@ -165,6 +169,18 @@ int main (int argc, char * argv[]) {
       case 'd':
         sprintf(description,"\"%s\"",optarg);
         break;
+      case 'i':
+        if(sscanf(optarg,"%i",&index_digits) != 1 ||
+        (index_digits != 5 && index_digits != 6))
+        {
+          fprintf(stderr,"Invalid argument to -i.\n");
+          print_usage(stderr,argv[0]);
+          exit(EXIT_FAILURE);
+        }
+        break;
+      case 'l':
+        sprintf(mminlu, "%s", optarg);
+        break;
       case 'h':
         print_usage(stdout,argv[0]);
         exit(EXIT_SUCCESS);
@@ -203,11 +219,15 @@ int main (int argc, char * argv[]) {
   strcpy(idx.description,description);
   strcpy(idx.units,units);
   idx.missing=missing;
+  idx.index_digits = index_digits;
   if(categorical_range) {
     idx.categorical=1;
     idx.cat_max=categorical_range+1;
     idx.cat_min=1;
     idx.missing=idx.cat_max;
+    if (strlen (mminlu > 0)){
+      strcpy(idx.mminlu, mminlu);
+    }
   }
   else {
     idx.categorical=0;
@@ -221,10 +241,17 @@ int main (int argc, char * argv[]) {
   idx.scalefactor=scale;
   
   /* check if the data set is too large for geogrid format */
-  if (idx.nx > 99999 - idx.tx || idx.ny > 99999 - idx.ty) {
-    fprintf(stderr,"The data set is too large for geogrid format!\n");
+
+  
+  if (index_digits == 5 && (idx.nx > 99999 - idx.tx || idx.ny > 99999 - idx.ty)) {
+    fprintf(stderr,"The data set is too large for 5 index digits, use -i 6 option\n");
     exit(EXIT_FAILURE);
-  }  
+  }
+
+  if (index_digits == 6 && (idx.nx > 999999 -idx.tx || idx.ny > 999999 - idx.ty)){
+     fprintf(stderr,"The data set is too large for geogrid format!\n");
+     exit(EXIT_FAILURE);
+  }
   
   /* write index file to disk */
   write_index_file("index",idx);
