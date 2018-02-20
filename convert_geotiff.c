@@ -77,14 +77,14 @@ void print_usage(FILE* f,const char* name) {
   fprintf(f,"-m MISSING : Missing value in output (default 0., ignored for categorical data)\n");
   fprintf(f,"-u UNITS   : Units of the data (default \"NO UNITS\")\n");
   fprintf(f,"-d DESC    : Description of data set (default \"NO DESCRIPTION\")\n");
-  fprintf(f,"-l DESC    : mminlu string for LANDUSE.tbl and VEGPARM.tbl, only for categorical data");
+  fprintf(f,"-l DESC    : mminlu string for LANDUSE.tbl and VEGPARM.tbl, only for categorical data\n");
   fprintf(f,"-i [5,6]   : Sets number of index digits in filename (default 5), 6 is useful for big datasets\n");
 }
 
 int main (int argc, char * argv[]) {
   
-  int c,i,j;
-  int categorical_range,border_width,word_size,isigned,tile_size,index_digits;
+  long c,i,j;
+  int categorical_range,border_width,word_size,isigned,tile_size,index_digits,imminlu;
   float scale,missing;
   GeogridIndex idx;
   char units[STRING_LENGTH],description[STRING_LENGTH],filename[STRING_LENGTH], mminlu[STRING_LENGTH];
@@ -96,9 +96,9 @@ int main (int argc, char * argv[]) {
   index_digits=5;
   word_size=2;
   isigned=1;
+  imminlu = 0;
   scale=1.;
   strcpy(units,"\"NO UNITS\"");
-  strcpy(mminlu,"");
   strcpy(description,"\"NO DESCRIPTION\"");
   categorical_range=0;
   tile_size=100;
@@ -180,6 +180,7 @@ int main (int argc, char * argv[]) {
         break;
       case 'l':
         sprintf(mminlu, "%s", optarg);
+        imminlu = 1;
         break;
       case 'h':
         print_usage(stdout,argv[0]);
@@ -225,7 +226,8 @@ int main (int argc, char * argv[]) {
     idx.cat_max=categorical_range+1;
     idx.cat_min=1;
     idx.missing=idx.cat_max;
-    if (strlen (mminlu > 0)){
+    idx.imminlu = imminlu;
+    if (idx.imminlu == 1){
       strcpy(idx.mminlu, mminlu);
     }
   }

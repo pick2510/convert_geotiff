@@ -140,6 +140,7 @@ int write_geogrid(
   }
   else if (*index_digits == 6){
     sprintf(fname,"%6.6i-%6.6i.%6.6i-%6.6i",ixs,ixe,iys,iye);
+    printf("%s", fname);
   }
   
   /* Write array to file */

@@ -43,7 +43,8 @@ typedef struct {
   int ty;        /* tile size in latitude (y) */
   int tz_s;      /* tile starting index in z (unused for 2d images) */
   int tz_e;      /* tile ending index in z (unused for 2d images) */
-  int index_digits;
+  int index_digits; /* index digits for file name, 5 or 6 */
+  int imminlu;    /* flag if LANDUSE string is set or not */
   bool isigned;  /* data is signed, true: yes, false: no */
   bool endian;   /* output endianness is, true: little, false: big */
   float scalefactor; /* amount to scale output before truncating to int */

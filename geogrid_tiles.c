@@ -196,7 +196,7 @@ void write_index_file(
   if (idx.categorical) {
     fprintf(f,"category_min = %i\n",idx.cat_min);
     fprintf(f,"category_max = %i\n",idx.cat_max);
-    if (strlen(idx.mminlu > 0)){
+    if (idx.imminlu == 1){
       fprintf(f,"mminlu = %s\n", idx.mminlu);
     }
   }
@@ -237,6 +237,7 @@ void write_tile(
   nx=idx.tx+2*idx.tile_bdr;
   ny=idx.ty+2*idx.tile_bdr;
   nz=nzsize(idx);
+  printf("%d", nz);
   
   /* unpack other meta data needed by write_geogrid */
   if (idx.isigned) isgn=1;
