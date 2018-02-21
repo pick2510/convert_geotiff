@@ -29,13 +29,35 @@
 
 /* common buffer conversion code for different data formats */
 #define CONV_CHAR_BUFFER_TO(_DTYPE,_DVAR)                       \
+printf("%ld - %ld - %ld Totalsize: %ld\n", inx,iny,inz, inx*iny*inz*sizeof(float));                         \
 bufferasfloat=(float*) alloc_buffer(inx*iny*inz*sizeof(float)); \
+if (bufferasfloat == NULL){                                     \
+  printf("Null pointer catched!");                              \
+  exit(-1);                                                     \
+}                                                               \
 for(i=0;i<inx*iny*inz;i++) {                                    \
   j=i*bytes_per_sample;                                         \
-  _DVAR=*(_DTYPE*)(buffer+j);               \
+  _DVAR=*(_DTYPE*)(buffer+j);                                   \
   bufferasfloat[i]=(float) _DVAR;                               \
 }                                                               \
 free_buffer(buffer);
+
+
+#define CONV_CHAR_BUFFER_STRIP_TO(_DTYPE,_DVAR)                       \
+printf("Totalsize: %ld\n", stripSize);                         \
+bufferasfloat=(float*) alloc_buffer(stripSize*sizeof(float)); \
+if (bufferasfloat == NULL){                                     \
+  printf("Null pointer catched!");                              \
+  exit(-1);                                                     \
+}                                                               \
+for(i=0;i<stripSize;i++) {                                    \
+  j=i*idx->bytes_per_sample;                                         \
+  _DVAR=*(_DTYPE*)(buffer+j);                                   \
+  bufferasfloat[i]=(float) _DVAR;                               \
+}                                                               \
+free_buffer(buffer);
+
+
 
 const int BIGENDIAN_TEST_VAL=1;
 
@@ -324,6 +346,7 @@ float* get_tiff_buffer(
   if ( TIFFIsTiled(file) ) {
     /* set up a buffer for reading each tile, this is copied to the global buffer */
     tilebuf = _TIFFmalloc(TIFFTileSize(file));
+
     
     /* get the tile dimensions in bytes */
     TIFFGetField(file, TIFFTAG_TILEWIDTH, &tileWidth);
@@ -378,7 +401,9 @@ float* get_tiff_buffer(
     /* Read in the possibly multiple strips.  This is easier than tiles because
        we don't have to worry about strides. */
     stripSize = TIFFStripSize (file);
+    /*printf("stripSize: %d\n", stripSize);*/
     stripMax = TIFFNumberOfStrips (file);
+    /*printf("stripMax: %d\n", stripMax);*/
     imageOffset = 0;
     for (stripCount = 0; stripCount < stripMax; stripCount++){
       if((result = TIFFReadEncodedStrip (file, stripCount,
@@ -447,3 +472,124 @@ float* get_tiff_buffer(
   
   return bufferasfloat;
 }
+
+void set_tiff_metadata(TIFF *file, GeogridIndex *idx){
+
+  
+  /* get the number of bits in a pixel, determines how to cast to output */
+  if( ! TIFFGetField(file,TIFFTAG_BITSPERSAMPLE,&idx->bits_per_sample) ) {
+    fprintf(stderr,"Could not find TIFFTAG_BITSPERSAMPLE.\n");
+    exit(EXIT_FAILURE);
+  }
+  
+  /* only 1,2, and 4 byte are supported for now */
+  switch (idx->bits_per_sample) {
+    case 8:
+      idx->bytes_per_sample=1;
+      break;
+    case 16:
+      idx->bytes_per_sample=2;
+      break;
+    case 32:
+      idx->bytes_per_sample=4;
+      break;
+    default:
+      fprintf(stderr,"Unsupport bits_per_sample=%i.\n",idx->bits_per_sample);
+      exit(EXIT_FAILURE);
+  }
+  
+  /* we only support scalar valued data (no color images) */
+  if( ! TIFFGetField(file,TIFFTAG_SAMPLESPERPIXEL,&idx->samples_per_pixel) ) {
+    fprintf(stderr,"Could not find TIFFTAG_SAMPLESPERPIXEL.\n");
+    exit(EXIT_FAILURE);
+  }
+  if (idx->samples_per_pixel != 1 ) {
+    fprintf(stderr,"Currently only single channel images (black and white) are supported.\n");
+    exit(EXIT_FAILURE);
+  }
+  if( ! TIFFGetField(file,TIFFTAG_SAMPLEFORMAT,&idx->sample_format) ) 
+    idx->sample_format=SAMPLEFORMAT_UINT;
+}
+
+
+
+float* read_strip(TIFF *file, int stripCount, long unsigned int stripSize, GeogridIndex *idx){
+     unsigned long int bufsize;
+     float* bufferasfloat;
+     double dtemp;
+     unsigned char* buffer;
+     int result, i,j;
+     uint8 iutemp8;
+     uint16 iutemp16;
+     uint32 iutemp32;
+     int8 itemp8;
+     int16 itemp16;
+     int32 itemp32;
+     bufsize = ((unsigned long) idx->samples_per_pixel) * ((unsigned long) idx->bytes_per_sample) * ((unsigned long) stripSize);
+     buffer = alloc_buffer(bufsize);
+     if (buffer == NULL) {
+        fprintf(stderr, "Couldn't allocate buffer, mem full?");
+     }
+
+    if((result = TIFFReadEncodedStrip (file, stripCount,
+                                         buffer,
+                                         stripSize)) == -1){
+    fprintf(stderr, "Read error on input strip number %lu\n", stripCount);
+    exit(EXIT_FAILURE);
+    }
+    switch (idx->sample_format) {
+    case SAMPLEFORMAT_UINT:
+      switch (idx->bytes_per_sample) {
+        case 1:
+          CONV_CHAR_BUFFER_STRIP_TO(uint8,iutemp8)
+          break;
+        case 2:
+          CONV_CHAR_BUFFER_STRIP_TO(uint16,iutemp16)
+          break;
+        case 4:
+          CONV_CHAR_BUFFER_STRIP_TO(uint32,iutemp32)
+          break;
+        default:
+          fprintf(stderr,"Unsupported bytes per sample=%i for uint.\n",idx->bytes_per_sample);
+          exit(EXIT_FAILURE);
+      }
+      break;
+    case SAMPLEFORMAT_INT:
+      switch (idx->bytes_per_sample) {
+        case 1:
+          CONV_CHAR_BUFFER_STRIP_TO(int8,itemp8)
+          break;
+        case 2:
+          CONV_CHAR_BUFFER_STRIP_TO(int16,itemp16)
+          break;
+        case 4:
+          CONV_CHAR_BUFFER_STRIP_TO(int32,itemp32)
+          break;
+        default:
+          fprintf(stderr,"Unsupported bytes per sample=%i for int.\n",idx->bytes_per_sample);
+          exit(EXIT_FAILURE);
+      }
+      break;
+    case SAMPLEFORMAT_IEEEFP:
+      switch (idx->bytes_per_sample) {
+        case sizeof(float):
+          /* no conversion needs to be done if image is single precision float */
+          bufferasfloat = (float*) buffer;
+          break;
+        case sizeof(double):
+          CONV_CHAR_BUFFER_STRIP_TO(double,dtemp)
+          break;
+        default:
+          fprintf(stderr,"Unsupported bytes per sample=%i for IEEEFP.\n",idx->bytes_per_sample);
+          exit(EXIT_FAILURE);
+      }
+      break;
+    default:
+      fprintf(stderr,"Unsupported data type in image.\n");
+      exit(EXIT_FAILURE);
+  }
+  
+  return bufferasfloat;
+}
+
+      

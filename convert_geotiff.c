@@ -47,6 +47,7 @@
 #include "geogrid_tiles.h"
 #include "read_geotiff.h"
 
+
 #ifdef RELATIVE_GTIFF
 #include <geotiff/xtiffio.h>
 #else
@@ -83,13 +84,16 @@ void print_usage(FILE* f,const char* name) {
 
 int main (int argc, char * argv[]) {
   
-  long c,i,j;
+  long c,i,j, stripCounter, strip_x;
+  unsigned long stripMax;
   int categorical_range,border_width,word_size,isigned,tile_size,index_digits,imminlu;
   float scale,missing;
   GeogridIndex idx;
   char units[STRING_LENGTH],description[STRING_LENGTH],filename[STRING_LENGTH], mminlu[STRING_LENGTH];
   TIFF *file;
   float *buffer,swp;
+  tsize_t stripSize;
+
   
   /* set up defaults */
   border_width=3;
@@ -243,7 +247,6 @@ int main (int argc, char * argv[]) {
   idx.scalefactor=scale;
   
   /* check if the data set is too large for geogrid format */
-
   
   if (index_digits == 5 && (idx.nx > 99999 - idx.tx || idx.ny > 99999 - idx.ty)) {
     fprintf(stderr,"The data set is too large for 5 index digits, use -i 6 option\n");
@@ -254,31 +257,54 @@ int main (int argc, char * argv[]) {
      fprintf(stderr,"The data set is too large for geogrid format!\n");
      exit(EXIT_FAILURE);
   }
-  
+  if (idx.nx > 99999 - idx.tx || idx.ny > 99999 - idx.ty){
+    idx.decompose_file = 1;
+  } 
   /* write index file to disk */
+  set_tiff_metadata(file, &idx);
   write_index_file("index",idx);
-  
   /* read geotiff file */
-  buffer=get_tiff_buffer(file);
- 
-  if(!idx.bottom_top) {
-    for(i=0;i<idx.ny/2;i++) {
-      for(j=0;j<idx.nx;j++) {
-	swp=buffer[i*idx.nx+j];
-	buffer[i*idx.nx+j]=buffer[(idx.ny-i-1)*idx.nx+j];
-	buffer[(idx.ny-i-1)*idx.nx+j]=swp;
+  if (idx.decompose_file == 0){
+
+      buffer=get_tiff_buffer(file);
+
+      if(!idx.bottom_top) {
+      for(i=0;i<idx.ny/2;i++) {
+        for(j=0;j<idx.nx;j++) {
+	        swp=buffer[i*idx.nx+j];
+	        buffer[i*idx.nx+j]=buffer[(idx.ny-i-1)*idx.nx+j];
+	        buffer[(idx.ny-i-1)*idx.nx+j]=swp;
       }
     }
     idx.bottom_top=1;
   }
 
   /* do any processing of data buffer needed */
-  process_buffer_f(idx,buffer);
+    process_buffer_f(idx,buffer);
   
   /* write data tiles */
-  convert_from_f(idx,buffer);
-  
-  /* free up memory */
-  free_buffer((unsigned char*) buffer);
+    convert_from_f(idx,buffer);
+    free_buffer((unsigned char*) buffer); 
+
+  } else {
+    printf("Decompose!\n");
+    if (TIFFIsTiled(file) ) {
+      printf("Tiled!\n");
+    } else {
+      stripSize = TIFFStripSize(file);
+       if (idx.bottom_top == 1){
+         buffer = read_strip(file, 1, stripSize, &idx); 
+       } else {
+          buffer = read_strip(file, 1, stripSize, &idx);
+          printf("Stop\n");
+       }
+    }
+      
+    }
+    
   exit(0);  
-}
+  }
+ 
+ 
+  /* free up memory */
+

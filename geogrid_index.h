@@ -13,6 +13,19 @@
 #ifndef _GEOGRID_INDEX_H_
 #define _GEOGRID_INDEX_H_
 
+#include "geogrid_index.h"
+
+#ifdef RELATIVE_GTIFF
+#include <geotiff/geotiffio.h>
+#include <geotiff/xtiffio.h>
+#include <geotiff/geo_normalize.h>
+#else
+#include <geotiffio.h>
+#include <xtiffio.h>
+#include <geo_normalize.h>
+#endif
+#include <tiffio.h>
+
 /* okay, so c does have a bool type... */
 #ifndef __cplusplus
 typedef unsigned int bool;
@@ -58,7 +71,8 @@ typedef struct {
   int cat_max;   /* maximum category (unused for continuous data) */
   float missing; /* value to enter for missing data (zero for categorical) */
   bool bottom_top; /* image is oriented bottom to top (true) or top to bottom (false) */
-  
+  int decompose_file; /*file has to be decomposed 1*/
+  uint16 bits_per_sample,samples_per_pixel,sample_format, bytes_per_sample; /*Tiff File Infos*/
   /* The remaining elements are projection specific.  See geogrid documentation for details.*/
   
   float dx;         /* pixel resolution in x */
@@ -71,5 +85,6 @@ typedef struct {
   float truelat1;   /* first latitude in projection spec */
   float truelat2;   /* second latitude in projection spec */
 } GeogridIndex;
+
 
 #endif
