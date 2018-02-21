@@ -29,7 +29,6 @@
 
 /* common buffer conversion code for different data formats */
 #define CONV_CHAR_BUFFER_TO(_DTYPE,_DVAR)                       \
-printf("%ld - %ld - %ld Totalsize: %ld\n", inx,iny,inz, inx*iny*inz*sizeof(float));                         \
 bufferasfloat=(float*) alloc_buffer(inx*iny*inz*sizeof(float)); \
 if (bufferasfloat == NULL){                                     \
   printf("Null pointer catched!");                              \
@@ -44,7 +43,6 @@ free_buffer(buffer);
 
 
 #define CONV_CHAR_BUFFER_STRIP_TO(_DTYPE,_DVAR)                       \
-printf("Totalsize: %ld\n", stripSize);                         \
 bufferasfloat=(float*) alloc_buffer(stripSize*sizeof(float)); \
 if (bufferasfloat == NULL){                                     \
   printf("Null pointer catched!");                              \
@@ -513,7 +511,7 @@ void set_tiff_metadata(TIFF *file, GeogridIndex *idx){
 
 
 
-float* read_strip(TIFF *file, int stripCount, long unsigned int stripSize, GeogridIndex *idx){
+float* read_single_row_strip(TIFF *file, int stripCount, long unsigned int stripSize, GeogridIndex *idx){
      unsigned long int bufsize;
      float* bufferasfloat;
      double dtemp;

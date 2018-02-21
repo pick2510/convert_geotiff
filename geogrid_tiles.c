@@ -63,6 +63,31 @@ for(z=0;z<nzsize(idx);z++) {          \
   i0+=globalzstride(idx);             \
 }
 
+
+#define _CONV_BUF_REVERSE             \
+float *tptr;                          \
+int z,y,x;                            \
+int i0,i1,nimg;                       \
+tptr=tile;                            \
+i0=gettilestart(itile_x,nytiles(idx)-currentStrip,idx); \
+nimg=idx.nx*idx.ny*nzsize(idx);       \
+for(z=0;z<nzsize(idx);z++) {          \
+  i1=i0;                              \
+  for(y=-idx.tile_bdr;y<idx.ty+idx.tile_bdr;y++) {  \
+    gptr=&(databuf[i1]);              \
+    for(x=-idx.tile_bdr;x<idx.tx+idx.tile_bdr;x++) {\
+      if(i1+x >= nimg || i1+x < 0){   \
+        *tptr++ = idx.missing;        \
+        gptr++;                       \
+      }                               \
+      else                            \
+        *tptr++ = (float) *gptr++;    \
+    }                                 \
+    i1+=globalystride(idx);           \
+  }                                   \
+  i0+=globalzstride(idx);             \
+}
+
 /* common code for tile creation */
 #define _CONV_FILE(_GET_FUN)                           \
 int itile_x,itile_y;                                   \
@@ -77,6 +102,20 @@ for(itile_y=0;itile_y<nytiles(idx);itile_y++) {        \
     write_tile(itile_x,itile_y,idx,tile);              \
   }                                                    \
 }                                                      \
+free(tile);
+
+
+#define _CONV_STRIP_FILE_REVERSE(_GET_FUN)             \
+int itile_x,itile_y;                                   \
+float *tile;                                           \
+tile=alloc_tile_buffer(idx);                           \
+for(itile_x=0;itile_x<nxtiles(idx);itile_x++) {      \
+    if(GEO_DEBUG)                                      \
+      set_tile_to(tile,idx,itile_x,itile_y);           \
+    else                                               \
+      _GET_FUN(itile_x,nytiles(idx)-currentStrip,idx,databuf,tile);      \
+    write_tile(itile_x,nytiles(idx)-currentStrip,idx,tile);              \
+  }                                                    \                   
 free(tile);
 
 /* Writes geogrid metadata to a file. */
@@ -296,6 +335,7 @@ int globalzstride(const GeogridIndex idx) {
 }
 
 /* allocate a buffer for the tiles */
+
 float* alloc_tile_buffer(const GeogridIndex idx) {
   float *arr=malloc(  (idx.tx + 2*idx.tile_bdr) 
                     * (idx.ty + 2*idx.tile_bdr)
@@ -348,6 +388,17 @@ void convert_from_d(
   _CONV_FILE(get_tile_from_d)
 }
 
+void convert_from_f_strip_reverse(
+      const GeogridIndex idx, /* index structure */
+      const float *databuf,
+      const tsize_t stripSize,   /* global data buffer (float) */
+      const int currentStrip
+)
+{
+  _CONV_STRIP_FILE_REVERSE(get_tile_from_f)
+}
+
+
 void convert_from_f(
                     const GeogridIndex idx, /* index structure */
                     const float *databuf    /* global data buffer (float) */
@@ -364,6 +415,27 @@ void convert_from_i(
 
 /*  Do any processing of the buffer (i.e. filling in missing values) 
     before writing to file. */
+
+void process_buffer_strip(
+                      const GeogridIndex *idx,
+                      float *databuf,
+                      tsize_t stripSize
+                      ) {
+  long i;
+  float *ptr;
+  if (idx->categorical) {                  /* for categorical fields... */
+    for(i=0;i<stripSize;i++) { /* loop over all pixels */
+      ptr=databuf++;
+      if( (float)(int) *ptr != *ptr ||    /* set any values not in a valid range */
+          *ptr > idx->cat_max        ||    /* to the missing value */
+          *ptr < idx->cat_min)
+        *ptr=idx->missing;
+    }
+  }
+  
+  }
+
+
 void process_buffer_f(
                       const GeogridIndex idx, /* index structure */
                       float *databuf          /* global data buffer (float) */

@@ -84,8 +84,8 @@ void print_usage(FILE* f,const char* name) {
 
 int main (int argc, char * argv[]) {
   
-  long c,i,j, stripCounter, strip_x;
-  unsigned long stripMax;
+  long c,i,j;
+  uint32 stripMax;
   int categorical_range,border_width,word_size,isigned,tile_size,index_digits,imminlu;
   float scale,missing;
   GeogridIndex idx;
@@ -245,6 +245,7 @@ int main (int argc, char * argv[]) {
   idx.tx=tile_size;
   idx.ty=tile_size;
   idx.scalefactor=scale;
+  idx.decompose_file = 0;
   
   /* check if the data set is too large for geogrid format */
   
@@ -257,8 +258,9 @@ int main (int argc, char * argv[]) {
      fprintf(stderr,"The data set is too large for geogrid format!\n");
      exit(EXIT_FAILURE);
   }
-  if (idx.nx > 99999 - idx.tx || idx.ny > 99999 - idx.ty){
+  if (index_digits == 6 && (idx.nx > 99999 - idx.tx || idx.ny > 99999 - idx.ty)){
     idx.decompose_file = 1;
+    printf("%d %d %d", index_digits, idx.nx > 99999 - idx.tx, idx.nx > 99999 - idx.tx);
   } 
   /* write index file to disk */
   set_tiff_metadata(file, &idx);
@@ -291,12 +293,16 @@ int main (int argc, char * argv[]) {
     if (TIFFIsTiled(file) ) {
       printf("Tiled!\n");
     } else {
+      stripMax = TIFFNumberOfStrips(file);
       stripSize = TIFFStripSize(file);
        if (idx.bottom_top == 1){
-         buffer = read_strip(file, 1, stripSize, &idx); 
+         buffer = read_single_row_strip(file, 1, stripSize, &idx); 
        } else {
-          buffer = read_strip(file, 1, stripSize, &idx);
-          printf("Stop\n");
+          for (i=0; i<stripMax; i++){
+           buffer = read_single_row_strip(file, i, stripSize, &idx);
+            process_buffer_strip(&idx, buffer, stripSize);
+
+          }
        }
     }
       
