@@ -63,7 +63,7 @@ int write_geogrid(
   int A4, B4, C4, D4;
   iarray_t * iarray;
   unsigned char * barray;
-  char fname[24];
+  char fname[30];
   FILE * bfile;
   int ixs,ixe,iys,iye;
   const iarray_t one=1;
@@ -135,13 +135,16 @@ int write_geogrid(
       fprintf(stderr,"Unsupported wordsize=%i",*wordsize);
       exit(EXIT_FAILURE);
   }
-  if (*index_digits == 5){ 
-    sprintf(fname,"%5.5i-%5.5i.%5.5i-%5.5i",ixs,ixe,iys,iye);
+  
+  switch(*index_digits){
+    case 5:
+       sprintf(fname,"%5.5i-%5.5i.%5.5i-%5.5i",ixs,ixe,iys,iye);
+       break;
+    case 6:
+      sprintf(fname,"%6.6i-%6.6i.%6.6i-%6.6i",ixs,ixe,iys,iye);
+      break;
   }
-  else if (*index_digits == 6){
-    sprintf(fname,"%6.6i-%6.6i.%6.6i-%6.6i",ixs,ixe,iys,iye);
-    printf("%s", fname);
-  }
+  
   
   /* Write array to file */
   bfile = fopen(fname,"wb");

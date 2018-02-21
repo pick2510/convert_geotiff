@@ -237,7 +237,6 @@ void write_tile(
   nx=idx.tx+2*idx.tile_bdr;
   ny=idx.ty+2*idx.tile_bdr;
   nz=nzsize(idx);
-  printf("%d", nz);
   
   /* unpack other meta data needed by write_geogrid */
   if (idx.isigned) isgn=1;

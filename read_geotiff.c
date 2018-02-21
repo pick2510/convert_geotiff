@@ -246,7 +246,7 @@ float* get_tiff_buffer(
   /* Read tiff file into a buffer cast as float. 
      Allocates the buffer, should be freed by caller after use. */
   uint32 inx,iny,inz;
-  long long buffersize;
+  unsigned long buffersize;
   uint32 tileWidth, tileLength;
   uint16 bits_per_sample,samples_per_pixel,sample_format,/*fill_order,*/bytes_per_sample;
   long unsigned int stripMax,stripCount,i,j,k,i0,j0,j1,i1,cc,idx;
@@ -316,8 +316,7 @@ float* get_tiff_buffer(
    */
 
      /* allocate data buffer for image pixel size */
-    buffersize = ((long long) inx) * ((long long)iny) * ((long long) inz) *  ((long long) samples_per_pixel) * ((long long) bytes_per_sample);
-    printf("%lld", buffersize);
+    buffersize = ((unsigned long) inx) * ((unsigned long)iny) * ((unsigned long) inz) *  ((unsigned long) samples_per_pixel) * ((unsigned long) bytes_per_sample);
     buffer=alloc_buffer(buffersize);
 
  
