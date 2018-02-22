@@ -60,17 +60,17 @@ for(z=0;z<nzsize(idx);z++) {          \
     }                                 \
     i1+=globalystride(idx);           \
   }                                   \
-  i0+=globalzstride(idx);             \
+  i0+=globalzstride(idx);   \
 }
 
 
-#define _CONV_BUF_REVERSE             \
+#define _CONV_BUF_DECOMPOSE             \
 float *tptr;                          \
 int z,y,x;                            \
 int i0,i1,nimg;                       \
 tptr=tile;                            \
-i0=gettilestart(itile_x,nytiles(idx)-currentStrip,idx); \
-nimg=idx.nx*idx.ny*nzsize(idx);       \
+i0=gettilestart(itile_x,itile_y,idx); \
+nimg=idx.nx*nzsize(idx);       \
 for(z=0;z<nzsize(idx);z++) {          \
   i1=i0;                              \
   for(y=-idx.tile_bdr;y<idx.ty+idx.tile_bdr;y++) {  \
@@ -85,7 +85,7 @@ for(z=0;z<nzsize(idx);z++) {          \
     }                                 \
     i1+=globalystride(idx);           \
   }                                   \
-  i0+=globalzstride(idx);             \
+  i0+=globalzstride_decomposed(&idx);             \
 }
 
 /* common code for tile creation */
@@ -106,15 +106,17 @@ free(tile);
 
 
 #define _CONV_STRIP_FILE_REVERSE(_GET_FUN)             \
-int itile_x,itile_y;                                   \
+int itile_x,itile_y=0;                             \
+int currentTile;                                   \
 float *tile;                                           \
-tile=alloc_tile_buffer(idx);                           \
-for(itile_x=0;itile_x<nxtiles(idx);itile_x++) {      \
+tile=alloc_tile_buffer_decomposed(idx);                          \
+for(itile_x=0;itile_x<nxtiles(*idx);itile_x++) {      \
     if(GEO_DEBUG)                                      \
-      set_tile_to(tile,idx,itile_x,itile_y);           \
+      set_tile_to(tile,*idx,itile_x,itile_y);           \
     else                                               \
-      _GET_FUN(itile_x,nytiles(idx)-currentStrip,idx,databuf,tile);      \
-    write_tile(itile_x,nytiles(idx)-currentStrip,idx,tile);              \
+      _GET_FUN(itile_x,itile_y,*idx,databuf,tile);      \
+     currentTile = currentStrip / idx->ty;              \
+    write_tile(itile_x,nytiles(*idx)-currentTile,*idx,tile);              \
   }                                                    \                   
 free(tile);
 
@@ -330,6 +332,11 @@ int globalystride(const GeogridIndex idx) {
   return (idx.nx);
 }
 
+int globalzstride_decomposed(const GeogridIndex* idx){
+  return (idx->nx * 1);
+}
+
+
 int globalzstride(const GeogridIndex idx) {
   return (idx.nx*idx.ny);
 }
@@ -348,6 +355,19 @@ float* alloc_tile_buffer(const GeogridIndex idx) {
   return (arr);
 }
 
+
+float* alloc_tile_buffer_decomposed(const GeogridIndex *idx){
+  float *arr=malloc(  (idx->tx + 2*idx->tile_bdr) 
+                    * (idx->ty + 2*idx->tile_bdr)
+                    * nzsize(*idx)
+                    * sizeof(float) ); 
+  if (arr == NULL){
+    fprintf(stderr, "Couldn't allocate tile buffer. Out of Memory?");
+    exit(EXIT_FAILURE);
+  }
+  return(arr);
+}
+
 /* get the requested tile from the global buffer,
    cast to float */
 void get_tile_from_d(
@@ -359,6 +379,18 @@ void get_tile_from_d(
   const double *gptr;
   _CONV_BUF
 }
+
+
+void get_tile_from_f_decomposed(
+  int itile_x,int itile_y,  /* tile column/row */
+  const GeogridIndex idx,   /* index structure */
+  const float *databuf,     /* global data buffer (float, no casting) */
+  float *tile               /* tile data buffer */
+                     ) {
+  const float *gptr;
+  _CONV_BUF_DECOMPOSE
+}
+
 
 void get_tile_from_f(
   int itile_x,int itile_y,  /* tile column/row */
@@ -389,13 +421,13 @@ void convert_from_d(
 }
 
 void convert_from_f_strip_reverse(
-      const GeogridIndex idx, /* index structure */
-      const float *databuf,
-      const tsize_t stripSize,   /* global data buffer (float) */
-      const int currentStrip
+      const GeogridIndex *idx, /* index structure */
+      const float *databuf,  /* global data buffer (float) */
+      const long int currentStrip,
+      const tsize_t maxStrip
 )
 {
-  _CONV_STRIP_FILE_REVERSE(get_tile_from_f)
+  _CONV_STRIP_FILE_REVERSE(get_tile_from_f_decomposed)
 }
 
 

@@ -54,20 +54,18 @@ int processGeoTIFFreverse(TIFF* file, uint32 stripMax, tsize_t stripSize,
   float* buffer;
   int remainderOfReadOperations, i;
   int flIncompleteLastTile = 0;
-  long int readOperations;
-  printf("%d", stripPerTile);
+  long int readOperations, currentStrip=0;
   remainderOfReadOperations = stripMax % stripPerTile;
   if (remainderOfReadOperations == 0) {
-    printf("Remainder 0");
     readOperations = stripMax / stripPerTile;
   } else {
     flIncompleteLastTile = 1;
-    printf("Remainder: %d", remainderOfReadOperations);
     readOperations = stripMax / stripPerTile + 1;
   }
   for (i = 0; i < readOperations; i++) {
-    buffer = read_multiple_row_strip(file, stripPerTile, stripSize, i, &idx);
+    buffer = read_multiple_row_strip(file, stripPerTile, stripSize, i, &idx, &currentStrip);
     process_buffer_multirow_strip(&idx, buffer, stripPerTile);
+    convert_from_f_strip_reverse(&idx, buffer, currentStrip, stripMax);
     free_buffer((unsigned char*)buffer);
   }
   printf("Done\n");
@@ -75,7 +73,7 @@ int processGeoTIFFreverse(TIFF* file, uint32 stripMax, tsize_t stripSize,
 
 float* read_multiple_row_strip(TIFF* file, const int stripCount,
                                const tsize_t stripSize, const int startStrip,
-                               const GeogridIndex* idx) {
+                               const GeogridIndex* idx, long int* currentStrip) {
   unsigned long int bufsize, offset = 0;
   float* bufferasfloat;
   double dtemp;
@@ -91,7 +89,6 @@ float* read_multiple_row_strip(TIFF* file, const int stripCount,
   bufsize = ((unsigned long)idx->samples_per_pixel) *
             ((unsigned long)idx->bytes_per_sample) *
             ((unsigned long)stripSize) * ((unsigned long)stripCount);
-  printf("%ld\n", bufsize);
   buffer = alloc_buffer(bufsize);
   if (buffer == NULL) {
     fprintf(stderr, "Couldn't allocate buffer, mem full?");
@@ -104,6 +101,7 @@ float* read_multiple_row_strip(TIFF* file, const int stripCount,
     }
     offset += result;
   }
+  *currentStrip += stripCount;
   inx = idx->nx;
   iny = stripCount;
   inz = idx->nz;

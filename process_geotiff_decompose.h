@@ -31,7 +31,7 @@ extern "C" {
 #endif
     int processGeoTIFF(TIFF *file, uint32 stripMax, tsize_t stripSize, GeogridIndex idx);
     int processGeoTIFFreverse(TIFF *file, uint32 stripMax, tsize_t stripSizem, GeogridIndex idx);
-    float* read_multiple_row_strip(TIFF *file, const int stripCount, const tsize_t stripSize,  const int startStrip, const GeogridIndex *idx);
+    float* read_multiple_row_strip(TIFF *file, const int stripCount, const tsize_t stripSize,  const int startStrip, const GeogridIndex *idx, long int *currentStrip);
     float* read_single_row_strip(TIFF *file, const int stripCount, const tsize_t stripSize, const GeogridIndex *idx);
 #ifdef __cplusplus
 }
