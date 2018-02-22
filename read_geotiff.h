@@ -36,7 +36,6 @@ extern "C" {
   void free_buffer(unsigned char*);
   float* get_tiff_buffer(TIFF*);
   void set_tiff_metadata(TIFF*, GeogridIndex*);
-  float* read_single_row_strip(TIFF* file, int stripCount, long unsigned int stripSize, GeogridIndex *idx);
 #ifdef __cplusplus
 }
 #endif

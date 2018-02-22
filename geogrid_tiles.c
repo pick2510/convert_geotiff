@@ -435,6 +435,24 @@ void process_buffer_strip(
   
   }
 
+void process_buffer_multirow_strip(
+                      const GeogridIndex* idx, /* index structure */
+                      float *databuf,          /* global data buffer (float) */
+                      const int rows) {
+  long i;
+  float *ptr;
+  if (idx->categorical) {                  /* for categorical fields... */
+    for(i=0;i<idx->nx*rows*idx->nz;i++) { /* loop over all pixels */
+      ptr=databuf++;
+      if( (float)(int) *ptr != *ptr ||    /* set any values not in a valid range */
+          *ptr > idx->cat_max        ||    /* to the missing value */
+          *ptr < idx->cat_min)
+        *ptr=idx->missing;
+    }
+  }
+}
+
+
 
 void process_buffer_f(
                       const GeogridIndex idx, /* index structure */

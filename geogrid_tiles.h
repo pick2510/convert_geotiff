@@ -30,6 +30,7 @@ extern "C" {
   void convert_from_f(const GeogridIndex,const float*);
   void convert_from_f_strip_reverse(const GeogridIndex idx, const float *buffer, const tsize_t stripSize, const int currentStrip);
   void process_buffer_f(const GeogridIndex,float*);
+  void process_buffer_multirow_strip(const GeogridIndex* idx, float* buffer, const int rows);
   void process_buffer_strip(const GeogridIndex* idx, float* buffer, tsize_t stripSize);
   void set_tile_to(float*,const GeogridIndex,int,int);
 

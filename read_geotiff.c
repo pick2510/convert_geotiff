@@ -507,87 +507,10 @@ void set_tiff_metadata(TIFF *file, GeogridIndex *idx){
   }
   if( ! TIFFGetField(file,TIFFTAG_SAMPLEFORMAT,&idx->sample_format) ) 
     idx->sample_format=SAMPLEFORMAT_UINT;
+
+
 }
 
 
-
-float* read_single_row_strip(TIFF *file, int stripCount, long unsigned int stripSize, GeogridIndex *idx){
-     unsigned long int bufsize;
-     float* bufferasfloat;
-     double dtemp;
-     unsigned char* buffer;
-     int result, i,j;
-     uint8 iutemp8;
-     uint16 iutemp16;
-     uint32 iutemp32;
-     int8 itemp8;
-     int16 itemp16;
-     int32 itemp32;
-     bufsize = ((unsigned long) idx->samples_per_pixel) * ((unsigned long) idx->bytes_per_sample) * ((unsigned long) stripSize);
-     buffer = alloc_buffer(bufsize);
-     if (buffer == NULL) {
-        fprintf(stderr, "Couldn't allocate buffer, mem full?");
-     }
-
-    if((result = TIFFReadEncodedStrip (file, stripCount,
-                                         buffer,
-                                         stripSize)) == -1){
-    fprintf(stderr, "Read error on input strip number %lu\n", stripCount);
-    exit(EXIT_FAILURE);
-    }
-    switch (idx->sample_format) {
-    case SAMPLEFORMAT_UINT:
-      switch (idx->bytes_per_sample) {
-        case 1:
-          CONV_CHAR_BUFFER_STRIP_TO(uint8,iutemp8)
-          break;
-        case 2:
-          CONV_CHAR_BUFFER_STRIP_TO(uint16,iutemp16)
-          break;
-        case 4:
-          CONV_CHAR_BUFFER_STRIP_TO(uint32,iutemp32)
-          break;
-        default:
-          fprintf(stderr,"Unsupported bytes per sample=%i for uint.\n",idx->bytes_per_sample);
-          exit(EXIT_FAILURE);
-      }
-      break;
-    case SAMPLEFORMAT_INT:
-      switch (idx->bytes_per_sample) {
-        case 1:
-          CONV_CHAR_BUFFER_STRIP_TO(int8,itemp8)
-          break;
-        case 2:
-          CONV_CHAR_BUFFER_STRIP_TO(int16,itemp16)
-          break;
-        case 4:
-          CONV_CHAR_BUFFER_STRIP_TO(int32,itemp32)
-          break;
-        default:
-          fprintf(stderr,"Unsupported bytes per sample=%i for int.\n",idx->bytes_per_sample);
-          exit(EXIT_FAILURE);
-      }
-      break;
-    case SAMPLEFORMAT_IEEEFP:
-      switch (idx->bytes_per_sample) {
-        case sizeof(float):
-          /* no conversion needs to be done if image is single precision float */
-          bufferasfloat = (float*) buffer;
-          break;
-        case sizeof(double):
-          CONV_CHAR_BUFFER_STRIP_TO(double,dtemp)
-          break;
-        default:
-          fprintf(stderr,"Unsupported bytes per sample=%i for IEEEFP.\n",idx->bytes_per_sample);
-          exit(EXIT_FAILURE);
-      }
-      break;
-    default:
-      fprintf(stderr,"Unsupported data type in image.\n");
-      exit(EXIT_FAILURE);
-  }
-  
-  return bufferasfloat;
-}
 
       

@@ -46,6 +46,7 @@
 #include "geogrid_index.h"
 #include "geogrid_tiles.h"
 #include "read_geotiff.h"
+#include "process_geotiff_decompose.h"
 
 
 #ifdef RELATIVE_GTIFF
@@ -85,7 +86,7 @@ void print_usage(FILE* f,const char* name) {
 int main (int argc, char * argv[]) {
   
   long c,i,j;
-  uint32 stripMax;
+  uint32 stripMax, rowsPerStrip;
   int categorical_range,border_width,word_size,isigned,tile_size,index_digits,imminlu;
   float scale,missing;
   GeogridIndex idx;
@@ -245,7 +246,7 @@ int main (int argc, char * argv[]) {
   idx.tx=tile_size;
   idx.ty=tile_size;
   idx.scalefactor=scale;
-  idx.decompose_file = 0;
+  idx.decompose_file = 1;
   
   /* check if the data set is too large for geogrid format */
   
@@ -282,6 +283,7 @@ int main (int argc, char * argv[]) {
   }
 
   /* do any processing of data buffer needed */
+
     process_buffer_f(idx,buffer);
   
   /* write data tiles */
@@ -291,18 +293,25 @@ int main (int argc, char * argv[]) {
   } else {
     printf("Decompose!\n");
     if (TIFFIsTiled(file) ) {
-      printf("Tiled!\n");
+      fprintf(stderr, "Tiled TIFF files are not supported for decomposition. Use striped TIFF files.\n");
+      exit(EXIT_FAILURE);
     } else {
+      if (TIFFGetField(file, TIFFTAG_ROWSPERSTRIP, &rowsPerStrip) != 1 || rowsPerStrip !=1){
+        fprintf(stderr, "RowsPerStrip not defined or != 1. Please use a TIFF file with one row per strip and proper set tags.\n");
+        exit(EXIT_FAILURE);
+      }
       stripMax = TIFFNumberOfStrips(file);
       stripSize = TIFFStripSize(file);
-       if (idx.bottom_top == 1){
-         buffer = read_single_row_strip(file, 1, stripSize, &idx); 
+        if (idx.bottom_top == 1){
+         ;
        } else {
-          for (i=0; i<stripMax; i++){
+        int res = processGeoTIFFreverse(file, stripMax, stripSize, idx);
+
+         /* for (i=0; i<stripMax; i++){
            buffer = read_single_row_strip(file, i, stripSize, &idx);
             process_buffer_strip(&idx, buffer, stripSize);
-
-          }
+          free_buffer((unsigned char*) buffer);*/
+          
        }
     }
       
