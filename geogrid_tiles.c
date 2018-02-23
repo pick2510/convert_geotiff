@@ -82,7 +82,7 @@ for(z=0;z<nzsize(idx);z++) {          \
       }                               \
       else                            \
         *tptr++ = (float) *gptr++;    \
-    }                                 \
+   }                                 \
     i1+=globalystride(idx);           \
   }                                   \
   i0+=globalzstride_decomposed(&idx);             \
@@ -111,12 +111,15 @@ int currentTile;                                   \
 float *tile;                                           \
 tile=alloc_tile_buffer_decomposed(idx);                          \
 for(itile_x=0;itile_x<nxtiles(*idx);itile_x++) {      \
-    if(GEO_DEBUG)                                      \
-      set_tile_to(tile,*idx,itile_x,itile_y);           \
-    else                                               \
+    if(GEO_DEBUG) {                                             \
+      currentTile = currentStrip / idx->ty;                                           \
+      set_tile_to(tile,*idx,itile_x,nytiles(*idx)-currentTile); \
+      }           \
+    else  {                                             \
       _GET_FUN(itile_x,itile_y,*idx,databuf,tile);      \
      currentTile = currentStrip / idx->ty;              \
     write_tile(itile_x,nytiles(*idx)-currentTile,*idx,tile);              \
+    } \
   }                                                    \                   
 free(tile);
 
@@ -348,6 +351,7 @@ float* alloc_tile_buffer(const GeogridIndex idx) {
                     * (idx.ty + 2*idx.tile_bdr)
                     * nzsize(idx)
                     * sizeof(float) );
+ 
   /*memset(arr,0xFF,(idx.tx + 2*idx.tile_bdr) 
          * (idx.ty + 2*idx.tile_bdr)
          * nzsize(idx)
@@ -357,10 +361,9 @@ float* alloc_tile_buffer(const GeogridIndex idx) {
 
 
 float* alloc_tile_buffer_decomposed(const GeogridIndex *idx){
-  float *arr=malloc(  (idx->tx + 2*idx->tile_bdr) 
-                    * (idx->ty + 2*idx->tile_bdr)
-                    * nzsize(*idx)
-                    * sizeof(float) ); 
+  size_t siz= (idx->tx + 2*idx->tile_bdr) * (idx->ty + 2*idx->tile_bdr) * nzsize(*idx) * sizeof(float);
+  float *arr=malloc(siz);
+  printf("%ld\n", siz);
   if (arr == NULL){
     fprintf(stderr, "Couldn't allocate tile buffer. Out of Memory?");
     exit(EXIT_FAILURE);

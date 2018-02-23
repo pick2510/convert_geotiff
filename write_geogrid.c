@@ -72,15 +72,16 @@ int write_geogrid(
   iys = (*iy);
   ixe = ixs + (*nx) - 2*(*bdr) - 1;
   iye = iys + (*ny) - 2*(*bdr) - 1;
-  
+
+
   narray = (*nx) * (*ny) * (*nz);
   iarray = (iarray_t *)malloc(sizeof(iarray_t) * narray);
   barray = (unsigned char *)malloc(sizeof(unsigned char) * narray * (*wordsize));
   
   /* Scale real-valued array by scalefactor and convert to integers */
-  for (i=0; i<narray; i++)
+  for (i=0; i<narray; i++){
     iarray[i] = (iarray_t)fabs(rarray[i] / (*scalefactor));
-  
+  }
   /* 
    Set up byte offsets for each wordsize depending on byte order.
    A, B, C, D give the offsets of the LSB through MSB (i.e., for 
@@ -144,7 +145,8 @@ int write_geogrid(
       sprintf(fname,"%6.6i-%6.6i.%6.6i-%6.6i",ixs,ixe,iys,iye);
       break;
   }
-  
+ 
+
   
   /* Write array to file */
   bfile = fopen(fname,"wb");

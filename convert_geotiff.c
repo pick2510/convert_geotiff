@@ -267,7 +267,7 @@ int main (int argc, char * argv[]) {
   set_tiff_metadata(file, &idx);
   write_index_file("index",idx);
   /* read geotiff file */
-  if (idx.decompose_file == 0){
+  if (idx.decompose_file == 1){
 
       buffer=get_tiff_buffer(file);
 
