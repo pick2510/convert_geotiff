@@ -134,8 +134,10 @@ int main (int argc, char * argv[]) {
         isigned=0;
         break;
       case 't':
+        /* Upper-bounded at 99999: tile filenames are fixed 5-digit
+           zero-padded fields, so a larger tile size can never be written. */
         if(sscanf(optarg,"%i",&tile_size) != 1 ||
-           tile_size <= 0)
+           tile_size <= 0 || tile_size > 99999)
         {
           fprintf(stderr,"Invalid argument to -t.\n");
           print_usage(stderr,argv[0]);
@@ -160,10 +162,16 @@ int main (int argc, char * argv[]) {
         }
         break;
       case 'u':
-        sprintf(units,"\"%s\"",optarg);
+        if ( snprintf(units,STRING_LENGTH,"\"%s\"",optarg) >= STRING_LENGTH ) {
+          fprintf(stderr,"Argument to -u is too long (max %i characters).\n",STRING_LENGTH-3);
+          exit(EXIT_FAILURE);
+        }
         break;
       case 'd':
-        sprintf(description,"\"%s\"",optarg);
+        if ( snprintf(description,STRING_LENGTH,"\"%s\"",optarg) >= STRING_LENGTH ) {
+          fprintf(stderr,"Argument to -d is too long (max %i characters).\n",STRING_LENGTH-3);
+          exit(EXIT_FAILURE);
+        }
         break;
       case 'h':
         print_usage(stdout,argv[0]);
@@ -186,6 +194,10 @@ int main (int argc, char * argv[]) {
     exit(EXIT_FAILURE);
   }
   
+  if ( strlen(argv[optind]) >= STRING_LENGTH ) {
+    fprintf(stderr,"FileName is too long (max %i characters).\n",STRING_LENGTH-1);
+    exit(EXIT_FAILURE);
+  }
   strcpy(filename,argv[optind]);
   
   /* open geotiff file */

@@ -22,9 +22,9 @@ extern "C" {
   int nxtiles(const GeogridIndex);
   int nytiles(const GeogridIndex);
   int nzsize(const GeogridIndex);
-  int gettilestart(int,int,const GeogridIndex);
-  int globalystride(const GeogridIndex);
-  int globalzstride(const GeogridIndex);
+  long gettilestart(int,int,const GeogridIndex);
+  long globalystride(const GeogridIndex);
+  long globalzstride(const GeogridIndex);
   float *alloc_tile_buffer(const GeogridIndex);
   void get_tile_from_f(int,int,const GeogridIndex,const float*,float*);
   void convert_from_f(const GeogridIndex,const float*);

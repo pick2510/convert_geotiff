@@ -56,7 +56,7 @@ int write_geogrid(
                  const float * scalefactor,     /* value to divide array elements by before truncation to integers */
                  const int * wordsize )         /* number of bytes to use for each array element */
 {
-  int i, narray;
+  long i, narray;
   int A2, B2;
   int A3, B3, C3;
   int A4, B4, C4, D4;
@@ -65,16 +65,29 @@ int write_geogrid(
   char fname[24];
   FILE * bfile;
   int ixs,ixe,iys,iye;
-  const iarray_t one=1;
-  
+
   ixs = (*ix);
   iys = (*iy);
   ixe = ixs + (*nx) - 2*(*bdr) - 1;
   iye = iys + (*ny) - 2*(*bdr) - 1;
-  
-  narray = (*nx) * (*ny) * (*nz);
-  iarray = (iarray_t *)malloc(sizeof(iarray_t) * narray);
-  barray = (unsigned char *)malloc(sizeof(unsigned char) * narray * (*wordsize));
+
+  /* Tile filenames are fixed 5-digit zero-padded fields ("%5.5i"); refuse
+     to silently truncate/overflow the fname buffer for an out-of-range tile. */
+  if (ixs < 0 || ixe > 99999 || iys < 0 || iye > 99999) {
+    fprintf(stderr,"Tile index out of range for 5-digit filename: "
+                   "%i-%i.%i-%i\n",ixs,ixe,iys,iye);
+    exit(EXIT_FAILURE);
+  }
+
+  /* narray is `long` (and the multiplication done in `long`) since
+     nx*ny*nz can exceed INT_MAX for large tiles. */
+  narray = (long)(*nx) * (*ny) * (*nz);
+  iarray = (iarray_t *)malloc(sizeof(iarray_t) * (size_t)narray);
+  barray = (unsigned char *)malloc(sizeof(unsigned char) * (size_t)narray * (*wordsize));
+  if (iarray == NULL || barray == NULL) {
+    fprintf(stderr,"Could not allocate %ld-element tile buffer.\n",narray);
+    exit(EXIT_FAILURE);
+  }
   
   /* Scale real-valued array by scalefactor and convert to integers */
   for (i=0; i<narray; i++)
@@ -135,7 +148,7 @@ int write_geogrid(
       exit(EXIT_FAILURE);
   }
   
-  sprintf(fname,"%5.5i-%5.5i.%5.5i-%5.5i",ixs,ixe,iys,iye);
+  snprintf(fname,sizeof(fname),"%5.5i-%5.5i.%5.5i-%5.5i",ixs,ixe,iys,iye);
   
   /* Write array to file */
   bfile = fopen(fname,"wb");

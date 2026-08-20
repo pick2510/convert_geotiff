@@ -38,46 +38,6 @@
 #include <stdio.h>
 #include <math.h>
 
-/* common code for buffer conversion */
-#define _CONV_BUF                     \
-float *tptr;                          \
-int z,y,x;                            \
-int i0,i1,nimg;                       \
-tptr=tile;                            \
-i0=gettilestart(itile_x,itile_y,idx); \
-nimg=idx.nx*idx.ny*nzsize(idx);       \
-for(z=0;z<nzsize(idx);z++) {          \
-  i1=i0;                              \
-  for(y=-idx.tile_bdr;y<idx.ty+idx.tile_bdr;y++) {  \
-    gptr=&(databuf[i1]);              \
-    for(x=-idx.tile_bdr;x<idx.tx+idx.tile_bdr;x++) {\
-      if(i1+x >= nimg || i1+x < 0){   \
-        *tptr++ = idx.missing;        \
-        gptr++;                       \
-      }                               \
-      else                            \
-        *tptr++ = (float) *gptr++;    \
-    }                                 \
-    i1+=globalystride(idx);           \
-  }                                   \
-  i0+=globalzstride(idx);             \
-}
-
-/* common code for tile creation */
-#define _CONV_FILE(_GET_FUN)                           \
-int itile_x,itile_y;                                   \
-float *tile;                                           \
-tile=alloc_tile_buffer(idx);                           \
-for(itile_y=0;itile_y<nytiles(idx);itile_y++) {        \
-  for(itile_x=0;itile_x<nxtiles(idx);itile_x++) {      \
-    if(GEO_DEBUG)                                      \
-      set_tile_to(tile,idx,itile_x,itile_y);           \
-    else                                               \
-      _GET_FUN(itile_x,itile_y,idx,databuf,tile);      \
-    write_tile(itile_x,itile_y,idx,tile);              \
-  }                                                    \
-}                                                      \
-free(tile);
 
 /* Writes geogrid metadata to a file. */
 void write_index_file(
@@ -268,55 +228,45 @@ int nzsize(const GeogridIndex idx) {
     return (idx.nz);
 }
 
-/* get the global index of the first element of a tile (including border) 
-   the index returned might be < 0 or > the global image size, due to the 
-   border, the calling routine should should set invalid indices to missing */
-int gettilestart(
+/* get the global index of the first element of a tile (including border)
+   the index returned might be < 0 or > the global image size, due to the
+   border, the calling routine should should set invalid indices to missing.
+   Widened to `long` since idx.nx*idx.ny can exceed INT_MAX for large rasters. */
+long gettilestart(
   int itile_x,             /* tile column number */
   int itile_y,             /* tile row number */
   const GeogridIndex idx   /* index structure */
                  ) {
-  int sx,                  /* global column number */
-      sy;                  /* global row number */
-  sx=itile_x * idx.tx - idx.tile_bdr;
-  sy=itile_y * idx.ty - idx.tile_bdr;
-  return (sy * idx.nx + sx);
+  long sx,                 /* global column number */
+       sy;                 /* global row number */
+  sx=(long)itile_x * idx.tx - idx.tile_bdr;
+  sy=(long)itile_y * idx.ty - idx.tile_bdr;
+  return (sy * (long)idx.nx + sx);
 }
 
 /* get global strides */
-int globalystride(const GeogridIndex idx) {
-  return (idx.nx);
+long globalystride(const GeogridIndex idx) {
+  return ((long)idx.nx);
 }
 
-int globalzstride(const GeogridIndex idx) {
-  return (idx.nx*idx.ny);
+long globalzstride(const GeogridIndex idx) {
+  return ((long)idx.nx*idx.ny);
 }
 
 /* allocate a buffer for the tiles */
 float* alloc_tile_buffer(const GeogridIndex idx) {
-  float *arr=malloc(  (idx.tx + 2*idx.tile_bdr) 
-                    * (idx.ty + 2*idx.tile_bdr)
-                    * nzsize(idx)
-                    * sizeof(float) );
-  /*memset(arr,0xFF,(idx.tx + 2*idx.tile_bdr) 
-         * (idx.ty + 2*idx.tile_bdr)
-         * nzsize(idx)
-         * sizeof(float));*/
+  size_t n = (size_t)(idx.tx + 2*idx.tile_bdr)
+           * (size_t)(idx.ty + 2*idx.tile_bdr)
+           * (size_t)nzsize(idx);
+  float *arr=malloc(n * sizeof(float));
   return (arr);
 }
 
-/* get the requested tile from the global buffer,
-   cast to float */
-void get_tile_from_d(
-  int itile_x,int itile_y,  /* tile column/row */
-  const GeogridIndex idx,   /* index structure */
-  const double *databuf,    /* global data buffer (double) */
-  float *tile               /* tile data buffer */
-                     ) {
-  const double *gptr;
-  _CONV_BUF
-}
-
+/* Get the requested tile from the global (float) buffer.
+   `nimg`/`i0`/`i1` are `long` since idx.nx*idx.ny*nz can exceed INT_MAX
+   for large rasters -- this used to be triplicated (float/double/int) via
+   the _CONV_BUF macro, but only the float path was ever called, so the
+   double/int variants (get_tile_from_d, get_tile_from_i) were removed. */
 void get_tile_from_f(
   int itile_x,int itile_y,  /* tile column/row */
   const GeogridIndex idx,   /* index structure */
@@ -324,39 +274,52 @@ void get_tile_from_f(
   float *tile               /* tile data buffer */
                      ) {
   const float *gptr;
-  _CONV_BUF
+  float *tptr;
+  int z,y,x;
+  long i0,i1,nimg;
+
+  tptr=tile;
+  i0=gettilestart(itile_x,itile_y,idx);
+  nimg=(long)idx.nx*idx.ny*nzsize(idx);
+  for(z=0;z<nzsize(idx);z++) {
+    i1=i0;
+    for(y=-idx.tile_bdr;y<idx.ty+idx.tile_bdr;y++) {
+      gptr=&(databuf[i1]);
+      for(x=-idx.tile_bdr;x<idx.tx+idx.tile_bdr;x++) {
+        if(i1+x >= nimg || i1+x < 0){
+          *tptr++ = idx.missing;
+          gptr++;
+        }
+        else
+          *tptr++ = (float) *gptr++;
+      }
+      i1+=globalystride(idx);
+    }
+    i0+=globalzstride(idx);
+  }
 }
 
-void get_tile_from_i(
-  int itile_x,int itile_y,  /* tile column/row */
-  const GeogridIndex idx,   /* index structure */
-  const int *databuf,       /* global data buffer (int) */
-  float *tile               /* tile data buffer */
-                     ) {
-  const int *gptr;
-  _CONV_BUF
-}
-
-/* write all tiles to disk, using the appropriate get_tile_from_? function */
-void convert_from_d(
-                    const GeogridIndex idx, /* index structure */
-                    const double *databuf   /* global data buffer (double) */
-                    ) {
-  _CONV_FILE(get_tile_from_d)
-}
-
+/* Write all tiles to disk.
+   Used to be generated via the _CONV_FILE(get_tile_from_?) macro alongside
+   convert_from_d/convert_from_i, which were dead code -- only this float
+   path is ever called from convert_geotiff.c. */
 void convert_from_f(
                     const GeogridIndex idx, /* index structure */
                     const float *databuf    /* global data buffer (float) */
                     ) {
-  _CONV_FILE(get_tile_from_f)
-}
-
-void convert_from_i(
-                    const GeogridIndex idx, /* index structure */
-                    const int *databuf      /* global data buffer (int) */
-                    ) {
-  _CONV_FILE(get_tile_from_i)
+  int itile_x,itile_y;
+  float *tile;
+  tile=alloc_tile_buffer(idx);
+  for(itile_y=0;itile_y<nytiles(idx);itile_y++) {
+    for(itile_x=0;itile_x<nxtiles(idx);itile_x++) {
+      if(GEO_DEBUG)
+        set_tile_to(tile,idx,itile_x,itile_y);
+      else
+        get_tile_from_f(itile_x,itile_y,idx,databuf,tile);
+      write_tile(itile_x,itile_y,idx,tile);
+    }
+  }
+  free(tile);
 }
 
 /*  Do any processing of the buffer (i.e. filling in missing values) 
@@ -368,7 +331,7 @@ void process_buffer_f(
   long i;
   float *ptr;
   if (idx.categorical) {                  /* for categorical fields... */
-    for(i=0;i<idx.nx*idx.ny*idx.nz;i++) { /* loop over all pixels */
+    for(i=0;i<(long)idx.nx*idx.ny*idx.nz;i++) { /* loop over all pixels */
       ptr=databuf++;
       if( (float)(int) *ptr != *ptr ||    /* set any values not in a valid range */
           *ptr > idx.cat_max        ||    /* to the missing value */

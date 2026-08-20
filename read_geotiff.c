@@ -47,24 +47,33 @@ GeogridIndex get_index_from_geotiff(
   int projid,count;
   short modeltype;
   GeogridIndex idx;
-  double stdpar1,stdpar2,stdlon,olat,olon;
-  double pixelscale[3];
+  double stdpar1=0.,stdpar2=0.,stdlon=0.,olat=0.,olon=0.;
+  double *pixelscale;
   uint32 inx,iny,inz;
   uint16 orientation,format;
 
   /* Try and initialize any fields possible. */
-  /* Invalid fields are filled with 0. */
+  /* GTIFKeyGet does not guarantee its output is set on failure, so all of
+     these locals are pre-initialized to 0 above, and a failed lookup is
+     reported instead of silently propagating whatever value was left. */
   gtifh = GTIFNew(file);
   GTIFGetDefn(gtifh,&gtifp);
-  GTIFKeyGet(gtifh,ProjStdParallel1GeoKey,&stdpar1,0,1);
+  if ( ! GTIFKeyGet(gtifh,ProjStdParallel1GeoKey,&stdpar1,0,1) )
+    fprintf(stderr,"WARNING: could not read ProjStdParallel1GeoKey, using 0.\n");
   idx.truelat1=stdpar1;
-  GTIFKeyGet(gtifh,ProjStdParallel2GeoKey,&stdpar2,0,1);
+  if ( ! GTIFKeyGet(gtifh,ProjStdParallel2GeoKey,&stdpar2,0,1) )
+    fprintf(stderr,"WARNING: could not read ProjStdParallel2GeoKey, using 0.\n");
   idx.truelat2=stdpar2;
-  GTIFKeyGet(gtifh,ProjCenterLongGeoKey,&stdlon,0,1);
+  if ( ! GTIFKeyGet(gtifh,ProjCenterLongGeoKey,&stdlon,0,1) )
+    fprintf(stderr,"WARNING: could not read ProjCenterLongGeoKey, using 0.\n");
   idx.stdlon=stdlon;
-  TIFFGetField(file,GTIFF_PIXELSCALE,&count,&pixelscale);
-  idx.dx=pixelscale[0];
-  idx.dy=pixelscale[1];
+  if ( TIFFGetField(file,GTIFF_PIXELSCALE,&count,&pixelscale) && count >= 2 ) {
+    idx.dx=pixelscale[0];
+    idx.dy=pixelscale[1];
+  } else {
+    idx.dx=0.;
+    idx.dy=0.;
+  }
   
   /* Fill projection specific parameters. */
   /* WARNING: This is far from robust and will likely break 
@@ -74,30 +83,34 @@ GeogridIndex get_index_from_geotiff(
   switch (projid) {
     case CT_AlbersEqualArea:
       idx.proj=albers_nad83;
-      GTIFKeyGet(gtifh,ProjNatOriginLatGeoKey,&olat,0,1);
+      if ( ! GTIFKeyGet(gtifh,ProjNatOriginLatGeoKey,&olat,0,1) ||
+           ! GTIFKeyGet(gtifh,ProjNatOriginLongGeoKey,&olon,0,1) )
+        fprintf(stderr,"WARNING: could not read Albers origin lat/lon, using 0.\n");
       idx.known_lat=olat;
-      GTIFKeyGet(gtifh,ProjNatOriginLongGeoKey,&olon,0,1);
       idx.known_lon=olon;
       break;
     case CT_TransverseMercator:
       idx.proj=mercator;
-      GTIFKeyGet(gtifh,ProjNatOriginLatGeoKey,&olat,0,1);
+      if ( ! GTIFKeyGet(gtifh,ProjNatOriginLatGeoKey,&olat,0,1) ||
+           ! GTIFKeyGet(gtifh,ProjNatOriginLongGeoKey,&olon,0,1) )
+        fprintf(stderr,"WARNING: could not read Mercator origin lat/lon, using 0.\n");
       idx.known_lat=olat;
-      GTIFKeyGet(gtifh,ProjNatOriginLongGeoKey,&olon,0,1);
       idx.known_lon=olon;
       break;
     case CT_PolarStereographic:
       idx.proj=polar;
-      GTIFKeyGet(gtifh,ProjNatOriginLatGeoKey,&olat,0,1);
+      if ( ! GTIFKeyGet(gtifh,ProjNatOriginLatGeoKey,&olat,0,1) ||
+           ! GTIFKeyGet(gtifh,ProjNatOriginLongGeoKey,&olon,0,1) )
+        fprintf(stderr,"WARNING: could not read Polar Stereographic origin lat/lon, using 0.\n");
       idx.known_lat=olat;
-      GTIFKeyGet(gtifh,ProjNatOriginLongGeoKey,&olon,0,1);
       idx.known_lon=olon;
       break;
     case CT_LambertConfConic:
       idx.proj=lambert;
-      GTIFKeyGet(gtifh,ProjFalseOriginLatGeoKey,&olat,0,1);
+      if ( ! GTIFKeyGet(gtifh,ProjFalseOriginLatGeoKey,&olat,0,1) ||
+           ! GTIFKeyGet(gtifh,ProjFalseOriginLongGeoKey,&olon,0,1) )
+        fprintf(stderr,"WARNING: could not read Lambert false-origin lat/lon, using 0.\n");
       idx.known_lat=olat;
-      GTIFKeyGet(gtifh,ProjFalseOriginLongGeoKey,&olon,0,1);
       idx.known_lon=olon;
       break;
     default :
@@ -135,7 +148,14 @@ GeogridIndex get_index_from_geotiff(
     olon=1;
     GTIFImageToPCS(gtifh,&olon,&olat);
     if(idx.dx <= 0. && idx.dy <= 0) {
-      // As a last resort, get dx/dy from projection conversion.
+      /* Last resort: no ModelPixelScaleTag, so estimate dx/dy from the
+         coordinate delta of a single diagonal (1,1) pixel step. This is
+         only correct if the image-to-PCS transform has no rotation/shear
+         -- warn loudly since that assumption is not otherwise checked. */
+      fprintf(stderr,"WARNING: no valid pixel-scale tag found; estimating "
+                     "dx/dy from a single diagonal pixel step instead. This "
+                     "is only correct if the raster has no rotation/shear -- "
+                     "verify the resulting dx/dy in the index file by hand.\n");
       idx.dx=(float)fabs(olon-(double)idx.known_lon);
       idx.dy=(float)fabs(olat-(double)idx.known_lat);
     }
@@ -150,13 +170,17 @@ GeogridIndex get_index_from_geotiff(
     }
     idx.known_lat=olat;
     idx.known_lon=olon;
-    
+
     olat=1;
     olon=1;
     GTIFImageToPCS(gtifh,&olon,&olat);
     GTIFProj4ToLatLong(&gtifp,1,&olon,&olat);
     if(idx.dx <= 0. && idx.dy <= 0) {
-      // As a last resort, get dx/dy from projection conversion.
+      /* Last resort: same caveat as above -- only correct absent rotation/shear. */
+      fprintf(stderr,"WARNING: no valid pixel-scale tag found; estimating "
+                     "dx/dy from a single diagonal pixel step instead. This "
+                     "is only correct if the raster has no rotation/shear -- "
+                     "verify the resulting dx/dy in the index file by hand.\n");
       idx.dx=(float)fabs(olon-(double)idx.known_lon);
       idx.dy=(float)fabs(olat-(double)idx.known_lat);
     }
