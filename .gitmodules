@@ -1,0 +1,3 @@
+[submodule "third_party/fltk"]
+	path = third_party/fltk
+	url = https://github.com/fltk/fltk.git

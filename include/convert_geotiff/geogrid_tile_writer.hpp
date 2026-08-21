@@ -35,9 +35,6 @@ public:
   // Writes one tile to disk. Throws GeoConvertError on failure.
   void write_tile(int itile_x, int itile_y, const std::vector<float> &tile) const;
 
-  // Extracts and writes every tile in the dataset.
-  void convert_all(const std::vector<float> &databuf) const;
-
 private:
   const GeogridIndex &idx_;
 };

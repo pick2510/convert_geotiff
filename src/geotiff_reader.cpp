@@ -46,6 +46,25 @@ std::vector<float> convert_buffer(const std::vector<unsigned char> &raw, size_t 
   return out;
 }
 
+// Converts a raw byte buffer of DType samples, pixel-interleaved across
+// `nz` bands (PLANARCONFIG_CONTIG: all bands of pixel 0, then all bands of
+// pixel 1, ...), into a z-major float buffer (each band occupies a
+// contiguous nx*ny plane) -- matching GeogridTileWriter's z-stride
+// convention, and the exact inverse of geotiff_writer.cpp's own
+// band-interleaving when it writes a multi-level dataset back out.
+template <typename DType>
+std::vector<float> deinterleave_buffer(const std::vector<unsigned char> &raw, size_t plane_count, size_t nz) {
+  std::vector<float> out(plane_count * nz);
+  for (size_t i = 0; i < plane_count; ++i) {
+    for (size_t z = 0; z < nz; ++z) {
+      DType value;
+      std::memcpy(&value, raw.data() + (i * nz + z) * sizeof(DType), sizeof(DType));
+      out[z * plane_count + i] = static_cast<float>(value);
+    }
+  }
+  return out;
+}
+
 } // namespace
 
 GeoTiffFile::GeoTiffFile(const std::string &path) {
@@ -212,10 +231,24 @@ GeogridIndex GeoTiffFile::get_index() const {
   idx.nx = static_cast<int>(inx);
   idx.ny = static_cast<int>(iny);
 
-  if (TIFFGetField(tif_, TIFFTAG_IMAGEDEPTH, &inz))
-    idx.nz = static_cast<int>(inz);
-  else
-    idx.nz = 1;
+  // nz comes from one of two mutually-exclusive sources: the rarely-used
+  // volumetric TIFFTAG_IMAGEDEPTH extension, or -- far more common in
+  // practice -- a standard multi-band GeoTIFF (samples per pixel > 1),
+  // written as tile_z levels one band each. See read_buffer() for how
+  // each is actually read.
+  TIFFGetField(tif_, TIFFTAG_IMAGEDEPTH, &inz);
+  if (inz == 0) inz = 1;
+
+  uint16_t samples_per_pixel = 0;
+  TIFFGetField(tif_, TIFFTAG_SAMPLESPERPIXEL, &samples_per_pixel);
+  if (samples_per_pixel == 0) samples_per_pixel = 1;
+
+  if (inz > 1 && samples_per_pixel > 1) {
+    throw GeoConvertError(
+        "File has both TIFFTAG_IMAGEDEPTH > 1 and multiple samples per pixel; "
+        "ambiguous source for tile_z.");
+  }
+  idx.nz = (inz > 1) ? static_cast<int>(inz) : static_cast<int>(samples_per_pixel);
   idx.tz_s = 0;
   idx.tz_e = idx.tz_s + idx.nz - 1;
 
@@ -285,20 +318,34 @@ std::vector<float> GeoTiffFile::read_buffer() const {
       throw GeoConvertError("Unsupported bits_per_sample=" + std::to_string(bits_per_sample) + ".");
   }
 
-  // Only single channel (b/w) images are supported.
+  // A single channel (b/w) image is the common case; a multi-band image
+  // is read as tile_z levels, one band each (get_index() already
+  // validates this isn't combined with TIFFTAG_IMAGEDEPTH). Only
+  // PLANARCONFIG_CONTIG (the default, and what geotiff_writer.cpp itself
+  // produces) is supported for multi-band input.
   uint16_t samples_per_pixel = 0;
   if (!TIFFGetField(tif_, TIFFTAG_SAMPLESPERPIXEL, &samples_per_pixel)) {
     throw GeoConvertError("Could not find TIFFTAG_SAMPLESPERPIXEL.");
   }
-  if (samples_per_pixel != 1) {
-    throw GeoConvertError("Currently only single channel images (black and white) are supported.");
+  if (samples_per_pixel == 0) samples_per_pixel = 1;
+  if (samples_per_pixel > 1) {
+    uint16_t planar_config = PLANARCONFIG_CONTIG;
+    TIFFGetField(tif_, TIFFTAG_PLANARCONFIG, &planar_config);
+    if (planar_config != PLANARCONFIG_CONTIG) {
+      throw GeoConvertError("Multi-band images must use PLANARCONFIG_CONTIG (band-interleaved-by-pixel).");
+    }
   }
+  const bool multiband = samples_per_pixel > 1;
 
   uint16_t sample_format = SAMPLEFORMAT_UINT;
   TIFFGetField(tif_, TIFFTAG_SAMPLEFORMAT, &sample_format);
 
-  const size_t pixel_count =
-      static_cast<size_t>(inx) * iny * inz * samples_per_pixel;
+  // "Pixel" here (and pixel_idx/pixel_count below) means one full
+  // multi-band pixel, i.e. inx*iny*inz positions -- not one sample.
+  // pixel_count is the total number of *samples* (pixels * bands), used
+  // for buffer sizing and for the flat-conversion paths below.
+  const size_t pixel_plane_count = static_cast<size_t>(inx) * iny * inz;
+  const size_t pixel_count = pixel_plane_count * samples_per_pixel;
   const size_t buffer_size = pixel_count * static_cast<size_t>(bytes_per_sample);
   std::vector<unsigned char> buffer(buffer_size);
 
@@ -318,16 +365,17 @@ std::vector<float> GeoTiffFile::read_buffer() const {
           }
 
           const unsigned char *tptr = tile_buf.data();
+          const size_t pixel_stride = static_cast<size_t>(samples_per_pixel) * bytes_per_sample;
           for (uint32_t j0 = 0; j0 < tile_length; ++j0) {
             uint32_t j1 = j0 + j;
             uint32_t i1 = i;
 
             const size_t pixel_idx = static_cast<size_t>(k) * inx * iny + static_cast<size_t>(j1) * inx + i1;
-            if (pixel_idx < pixel_count) {
-              unsigned char *bptr = buffer.data() + pixel_idx * bytes_per_sample;
-              std::memcpy(bptr, tptr, static_cast<size_t>(tile_width) * bytes_per_sample);
+            if (pixel_idx < pixel_plane_count) {
+              unsigned char *bptr = buffer.data() + pixel_idx * pixel_stride;
+              std::memcpy(bptr, tptr, static_cast<size_t>(tile_width) * pixel_stride);
             }
-            tptr += static_cast<size_t>(tile_width) * bytes_per_sample;
+            tptr += static_cast<size_t>(tile_width) * pixel_stride;
           }
         }
       }
@@ -347,32 +395,44 @@ std::vector<float> GeoTiffFile::read_buffer() const {
     }
   }
 
-  // Convert image buffer into float.
+  // Convert image buffer into float. Multi-band data is de-interleaved
+  // into a z-major buffer (see deinterleave_buffer()); everything else
+  // (the common single-band case, and the volumetric IMAGEDEPTH case,
+  // which is already read z-plane by z-plane above) is a flat conversion.
   switch (sample_format) {
     case SAMPLEFORMAT_UINT:
       switch (bytes_per_sample) {
-        case 1: return convert_buffer<uint8_t>(buffer, pixel_count);
-        case 2: return convert_buffer<uint16_t>(buffer, pixel_count);
-        case 4: return convert_buffer<uint32_t>(buffer, pixel_count);
+        case 1: return multiband ? deinterleave_buffer<uint8_t>(buffer, pixel_plane_count, samples_per_pixel)
+                                  : convert_buffer<uint8_t>(buffer, pixel_count);
+        case 2: return multiband ? deinterleave_buffer<uint16_t>(buffer, pixel_plane_count, samples_per_pixel)
+                                  : convert_buffer<uint16_t>(buffer, pixel_count);
+        case 4: return multiband ? deinterleave_buffer<uint32_t>(buffer, pixel_plane_count, samples_per_pixel)
+                                  : convert_buffer<uint32_t>(buffer, pixel_count);
         default:
           throw GeoConvertError("Unsupported bytes per sample=" + std::to_string(bytes_per_sample) + " for uint.");
       }
     case SAMPLEFORMAT_INT:
       switch (bytes_per_sample) {
-        case 1: return convert_buffer<int8_t>(buffer, pixel_count);
-        case 2: return convert_buffer<int16_t>(buffer, pixel_count);
-        case 4: return convert_buffer<int32_t>(buffer, pixel_count);
+        case 1: return multiband ? deinterleave_buffer<int8_t>(buffer, pixel_plane_count, samples_per_pixel)
+                                  : convert_buffer<int8_t>(buffer, pixel_count);
+        case 2: return multiband ? deinterleave_buffer<int16_t>(buffer, pixel_plane_count, samples_per_pixel)
+                                  : convert_buffer<int16_t>(buffer, pixel_count);
+        case 4: return multiband ? deinterleave_buffer<int32_t>(buffer, pixel_plane_count, samples_per_pixel)
+                                  : convert_buffer<int32_t>(buffer, pixel_count);
         default:
           throw GeoConvertError("Unsupported bytes per sample=" + std::to_string(bytes_per_sample) + " for int.");
       }
     case SAMPLEFORMAT_IEEEFP:
       switch (bytes_per_sample) {
         case sizeof(float): {
+          if (multiband) return deinterleave_buffer<float>(buffer, pixel_plane_count, samples_per_pixel);
           std::vector<float> out(pixel_count);
           std::memcpy(out.data(), buffer.data(), pixel_count * sizeof(float));
           return out;
         }
-        case sizeof(double): return convert_buffer<double>(buffer, pixel_count);
+        case sizeof(double): return multiband
+                                        ? deinterleave_buffer<double>(buffer, pixel_plane_count, samples_per_pixel)
+                                        : convert_buffer<double>(buffer, pixel_count);
         default:
           throw GeoConvertError("Unsupported bytes per sample=" + std::to_string(bytes_per_sample) + " for IEEEFP.");
       }

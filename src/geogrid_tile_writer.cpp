@@ -194,13 +194,4 @@ void GeogridTileWriter::write_tile(int itile_x, int itile_y, const std::vector<f
   write_binary_tile(tile, nx, itx, ny, ity, nz, idx_);
 }
 
-void GeogridTileWriter::convert_all(const std::vector<float> &databuf) const {
-  for (int itile_y = 0; itile_y < ny_tiles(); ++itile_y) {
-    for (int itile_x = 0; itile_x < nx_tiles(); ++itile_x) {
-      std::vector<float> tile = extract_tile(itile_x, itile_y, databuf);
-      write_tile(itile_x, itile_y, tile);
-    }
-  }
-}
-
 } // namespace convert_geotiff
