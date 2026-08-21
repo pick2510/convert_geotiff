@@ -16,3 +16,6 @@
 *.out
 *.app
 BUGS.md
+
+# CMake build directory
+/build/

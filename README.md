@@ -22,10 +22,16 @@ find the libraries by setting configuration variables <tt>CFLAGS="-I$PREFIX/incl
 Compiling the source
 --------------------
 
-Download the latest release tarball from [here](https://github.com/jbeezley/convert_geotiff/releases)
-and extract it.  In the extracted directory, run <tt>./configure && make</tt>.  If everything built correctly,
-you should now have <tt>convert_geotiff</tt> in the current directly.  You can either move this file into
-your <tt>PATH</tt> or type <tt>sudo make install</tt> to install it.
+This project uses CMake.  From the repository root, run
+
+<pre>cmake -B build && cmake --build build</pre>
+
+If everything built correctly, you should now have <tt>build/convert_geotiff</tt>.  You can either move this
+file into your <tt>PATH</tt> or run <tt>cmake --install build</tt> (as root, if installing to a system prefix)
+to install it.  If GeoTIFF/LibTIFF are installed in a non-standard location, point CMake at it with
+<tt>-DCMAKE_PREFIX_PATH=$PREFIX</tt>.
+
+To run the test suite, use <tt>ctest --test-dir build</tt>.
 
 Using convert_geotiff
 ---------------------
