@@ -166,7 +166,7 @@ void ConvertWindow::browse_output_tiff() {
   Fl_Native_File_Chooser chooser(Fl_Native_File_Chooser::BROWSE_SAVE_FILE);
   chooser.title("Choose the output GeoTIFF path");
   chooser.filter("GeoTIFF Files\t*.{tif,tiff}");
-  chooser.options(Fl_Native_File_Chooser::SAVEAS_CONFIRM);
+  chooser.options(Fl_Native_File_Chooser::SAVEAS_CONFIRM | Fl_Native_File_Chooser::NEW_FOLDER);
   if (chooser.show() == 0) {
     output_tiff_->value(chooser.filename());
   }
