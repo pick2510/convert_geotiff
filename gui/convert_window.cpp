@@ -154,7 +154,16 @@ void ConvertWindow::browse_input() {
 }
 
 void ConvertWindow::browse_output() {
-  Fl_Native_File_Chooser chooser(Fl_Native_File_Chooser::BROWSE_DIRECTORY);
+  // BROWSE_SAVE_DIRECTORY, not BROWSE_DIRECTORY: on Linux, FLTK's GTK
+  // backend (the default driver whenever GTK libs are present, which is
+  // effectively always) maps BROWSE_DIRECTORY to
+  // GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER and never calls
+  // gtk_file_chooser_set_create_folders() for it -- the NEW_FOLDER option
+  // below is simply never consulted on that path. BROWSE_SAVE_DIRECTORY
+  // maps to GTK_FILE_CHOOSER_ACTION_CREATE_FOLDER, which does enable
+  // folder creation, and is the type every other backend (Zenity,
+  // kdialog, FLTK's own dialog, macOS, Windows) implements this same way.
+  Fl_Native_File_Chooser chooser(Fl_Native_File_Chooser::BROWSE_SAVE_DIRECTORY);
   chooser.title("Choose an output directory");
   chooser.options(Fl_Native_File_Chooser::NEW_FOLDER);
   if (chooser.show() == 0) {
